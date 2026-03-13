@@ -1,0 +1,19 @@
+# secrets
+src/secrets.toml
+.secrets.toml
+secrets.toml
+
+src/.streamlit/secrets.toml
+.streamlit/secrets.toml
+
+# notebook checkpoints
+.ipynb_checkpoints/
+
+# python
+__pycache__/
+*.pyc
+
+# environments
+.venv/
+venv/
+env/
