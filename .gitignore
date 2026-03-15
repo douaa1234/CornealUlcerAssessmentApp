@@ -17,3 +17,12 @@ __pycache__/
 .venv/
 venv/
 env/
+
+# macOS
+.DS_Store
+
+
+# local app data
+src/data_store/app.db
+src/data_store/visits.csv
+
