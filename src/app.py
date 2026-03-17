@@ -108,8 +108,8 @@ def inject_css():
           background: var(--appbar-bg);
           box-shadow: var(--shadow2); margin-bottom: 14px;
         }
-        .brand{ font-size:1.05rem; font-weight:800; letter-spacing:-0.02em; color: var(--text); }
-        .subtitle{ font-size:0.86rem; color: var(--muted); margin-top: 2px; }
+        .brand{ font-size:1.05rem; font-weight:800; letter-spacing:-0.02em; color: inherit;}
+        .subtitle{ font-size:0.86rem; color: inherit; opacity: 0.7; margin-top: 2px;}
         .panel{
           border: 1px solid var(--bd);
           border-radius: var(--r);
@@ -118,18 +118,18 @@ def inject_css():
           padding: 12px 12px;
           margin-bottom: 12px;
         }
-        .panelTitle{ font-weight: 780; letter-spacing:-0.02em; margin-bottom: 6px; color: var(--text); }
+        .panelTitle{ font-weight: 780; letter-spacing:-0.02em; margin-bottom: 6px; color: inherit;}
         .stepper{ display:flex; flex-wrap:wrap; gap: 8px; margin: 8px 0 4px 0; }
         .chip{
           display:flex; align-items:center; gap: 8px;
           padding: 7px 10px;
           border-radius: 999px;
-          border: 1px solid var(--bd);
-          background: var(--panel-bg);
-          font-size: 0.82rem;
-          color: var(--text-soft);
+          border:1px solid var(--bd);
+          background:var(--panel-bg);
+          font-size:0.82rem;
+          color:inherit;
         }
-        .chip b{ color: var(--text); }
+        .chip b{ color: inherit; font-weight: 700;}
         .dot{
           width: 10px; height: 10px; border-radius: 999px;
           background: rgba(127,127,127,0.35);
@@ -358,11 +358,11 @@ def get_remembered_upload(ns: str) -> Tuple[Optional[str], Optional[bytes]]:
     return st.session_state.get(f"{ns}_last_name"), st.session_state.get(f"{ns}_last_bytes")
 
 
-# fluorescent model
+# Fluorescein model
 @st.cache_resource  # The model loads once per app session not every rerun
-def load_Fluerescent_model(model_path:str):
+def load_Fluorescein_model(model_path:str):
     if not KERAS_OK:
-        raise RuntimeError("Install TensorFlow/Keras to use Fluerescent model.")
+        raise RuntimeError("Install TensorFlow/Keras to use Fluorescein model.")
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found:{model_path}")
     if hasattr(keras,"saving") and hasattr(keras.saving, "load_model"):
@@ -390,7 +390,7 @@ def postprocess_keras_output(pred: np.ndarray,threshold:float)->np.ndarray:
     return ensure_mask01_size(mask01, MODEL_SIZE)
 
 #Runs preprocess -> model.predict()-> postprocess
-def predict_Fluerescent_mask01(model, rgb_u8_256: np.ndarray, threshold: float) -> np.ndarray:
+def predict_Fluorescein_mask01(model, rgb_u8_256: np.ndarray, threshold: float) -> np.ndarray:
     x= preprocess_for_keras(rgb_u8_256)
     pred= model.predict(x, verbose=0)
     return postprocess_keras_output(pred,threshold)  #Returns a 256×256 binary mask
@@ -955,17 +955,17 @@ def metrics(ns: str, rgb_display: np.ndarray, mask01_display: np.ndarray, comput
                 st.line_chart(plot_df[["opacity_zscore"]])
 
 # Prediction pipelines
-def run_Fluerescent_prediction()->Tuple[np.ndarray, np.ndarray]:
-    ns= "Fluerescent"
-    up= st.file_uploader("Fluerescent image", type=["png", "jpg", "jpeg"], key="Fluerescent_uploader")
+def run_Fluorescein_prediction()->Tuple[np.ndarray, np.ndarray]:
+    ns= "Fluorescein"
+    up= st.file_uploader("Fluorescein image", type=["png", "jpg", "jpeg"], key="Fluorescein_uploader")
     remember_upload(ns, up)
 
-    model_path= os.environ.get("Fluerescent_MODEL_PATH", os.path.join(APP_DIR, "RealDataModelv2.keras"))
-    thr= st.slider("Threshold", 0.05, 0.95, float(st.session_state.get("Fluerescent_thr", 0.50)), 0.05, key="Fluerescent_thr")
+    model_path= os.environ.get("Fluorescein_MODEL_PATH", os.path.join(APP_DIR, "RealDataModelv2.keras"))
+    thr= st.slider("Threshold", 0.05, 0.95, float(st.session_state.get("Fluorescein_thr", 0.50)), 0.05, key="Fluorescein_thr")
     if up is None:
         name,b = get_remembered_upload(ns)
         if b is None:
-            raise RuntimeError("No Fluerescent image uploaded yet.")
+            raise RuntimeError("No Fluorescein image uploaded yet.")
         rgb_native = bytesToRgb(b)
         img_name, img_bytes = name, b
     else:
@@ -979,15 +979,15 @@ def run_Fluerescent_prediction()->Tuple[np.ndarray, np.ndarray]:
     rgb_display= ensureRgbSize(rgb_native, DISPLAY_SIZE)
     rgb_model= ensureRgbSize(rgb_native, MODEL_SIZE)
 
-    pred_key= f"Fluerescent|{fp}|thr={thr:.3f}|model={model_path}"
+    pred_key= f"Fluorescein|{fp}|thr={thr:.3f}|model={model_path}"
 
-    if st.session_state.get("Fluerescent_pred_key")!=pred_key:
-        model= load_Fluerescent_model(model_path)
-        pred_mask01_model= predict_Fluerescent_mask01(model, rgb_model, threshold=thr)
-        st.session_state["Fluerescent_pred_mask01_model"]= pred_mask01_model
-        st.session_state["Fluerescent_pred_key"]= pred_key
+    if st.session_state.get("Fluorescein_pred_key")!=pred_key:
+        model= load_Fluorescein_model(model_path)
+        pred_mask01_model= predict_Fluorescein_mask01(model, rgb_model, threshold=thr)
+        st.session_state["Fluorescein_pred_mask01_model"]= pred_mask01_model
+        st.session_state["Fluorescein_pred_key"]= pred_key
 
-    pred_mask01_display= ensure_mask01_size(st.session_state["Fluerescent_pred_mask01_model"], DISPLAY_SIZE)
+    pred_mask01_display= ensure_mask01_size(st.session_state["Fluorescein_pred_mask01_model"], DISPLAY_SIZE)
 
     if step_state(ns) < 2:
         set_step(ns, 2)
@@ -1098,9 +1098,9 @@ with tab_workflow:
         )
         st.divider()
         mode_choice= st.radio(
-            "Image type",["Fluerescent", "White-light"],index=0 if st.session_state.get("mode", "Fluerescent") != "white" else 1,)
+            "Image type",["Fluorescein", "White-light"],index=0 if st.session_state.get("mode", "Fluorescein") != "white" else 1,)
         if st.button("Open"):
-            st.session_state["mode"] = "white" if mode_choice == "White-light" else "Fluerescent"
+            st.session_state["mode"] = "white" if mode_choice == "White-light" else "Fluorescein"
             st.rerun()
 
     if st.session_state["mode"] is None:
@@ -1108,7 +1108,7 @@ with tab_workflow:
         st.stop()
 
     mode = st.session_state["mode"]
-    ns = "white" if mode == "white" else "Fluerescent"
+    ns = "white" if mode == "white" else "Fluorescein"
     is_white = (ns == "white")
 
     if f"{ns}_step" not in st.session_state:
@@ -1119,19 +1119,19 @@ with tab_workflow:
     with right:
         st.markdown('<div class="sticky">', unsafe_allow_html=True)
         st.markdown('<div class="panel">', unsafe_allow_html=True)
-        st.markdown(f'<div class="panelTitle">{"White-light" if is_white else "Fluerescent"}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="panelTitle">{"White-light" if is_white else "Fluorescein"}</div>', unsafe_allow_html=True)
         stepper_ui(ns)
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     with left:
-        st.markdown(f"## {'White-light' if is_white else 'Fluerescent'}")
+        st.markdown(f"## {'White-light' if is_white else 'Fluorescein'}")
         st.markdown("### /1/ Upload")
         try:
             if is_white:
                 rgb_display, pred_mask01_display = run_white_prediction()
             else:
-                rgb_display, pred_mask01_display = run_Fluerescent_prediction()
+                rgb_display, pred_mask01_display = run_Fluorescein_prediction()
         except Exception as e:
             st.error(str(e))
             st.stop()
