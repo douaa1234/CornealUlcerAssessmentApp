@@ -554,6 +554,7 @@ def ReviewEdit(ns:str, rgb_display:np.ndarray, pred_mask01_display:np.ndarray) -
         return edited_mask
 
     bg= make_editor_background(rgb_display, edited_mask, alpha=alpha)
+    st.image(bg, caption="Debug background")
     stroke_color = "#00E676" if mode == "Add" else "#FF4DFF"
 
     canvas_result= st_canvas(
