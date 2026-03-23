@@ -469,6 +469,13 @@ def reset_editor_for_new_image(ns:str,fp:str):
             st.session_state.pop(k, None)
         set_step(ns, 2)
 
+def canvas_bg_from_array(arr: np.ndarray) -> Image.Image:
+    arr = arr.astype(np.uint8)
+    img = Image.fromarray(arr)
+    img = img.convert("RGBA")
+    img = img.resize((DISPLAY_SIZE, DISPLAY_SIZE))
+    return img
+
 #If no editable mask exists yet initialize it from the prediction
 def init_mask_state(ns: str, pred_mask01_display: np.ndarray):
     k=mask_key(ns)
@@ -476,8 +483,9 @@ def init_mask_state(ns: str, pred_mask01_display: np.ndarray):
         st.session_state[k] = pred_mask01_display.copy()
 
 #Returns a PIL image that is the overlay background for the canvas
-def make_editor_background(rgb_display:np.ndarray, mask01_display:np.ndarray, alpha:float) -> Image.Image:
-    return Image.fromarray(overlay_mask(rgb_display, mask01_display, alpha=alpha))
+def make_editor_background(rgb_display: np.ndarray, mask01_display: np.ndarray, alpha: float) -> Image.Image:
+    over = overlay_mask(rgb_display, mask01_display, alpha=alpha)
+    return canvas_bg_from_array(over)
 
 #This is the 'apply brush changes' logic
 def apply_strokes(canvas_rgba:np.ndarray, mask01_display:np.ndarray, mode:str) -> np.ndarray:
@@ -604,7 +612,7 @@ If you mark a neutral grey patch, the app can normalise brightness so the **opac
         return True, roi, float(target_grey)
     
     st.caption("Draw a rectangle around the grey patch.")
-    bg = Image.fromarray(rgb_display)
+    bg = canvas_bg_from_array(rgb_display)
     canvas = st_canvas(
         fill_color="rgba(255,255,255,0.0)",
         stroke_width=2,
@@ -659,7 +667,7 @@ def calibration(ns:str, rgb_display:np.ndarray, mask01_display:np.ndarray):
             step=0.1,
             key=f"{ns}_known_mm",
         )
-        bg = Image.fromarray(draw_grid(base, 25, thickness=1, opacity=0.16))
+        bg = canvas_bg_from_array(draw_grid(base, 25, thickness=1, opacity=0.16))
 #display the image
         line_canvas = st_canvas(
             fill_color="rgba(255,255,255,0.0)",
