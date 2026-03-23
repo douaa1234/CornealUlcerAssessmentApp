@@ -19,6 +19,9 @@ from analysis import analyse_arrays
 from ulcer_unet_infer import load_ulcer_unet,predict_mask_from_path
 from llm_report import generate_report_with_llm
 from db import init_db, save_visit, load_case_visits
+from download_models import download_models
+download_models()
+
 
 # Initialising dataset
 init_db()
