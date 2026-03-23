@@ -26,3 +26,5 @@ env/
 src/data_store/app.db
 src/data_store/visits.csv
 
+src/best.pt
+src/RealDataModelv2.keras
