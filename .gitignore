@@ -1,0 +1,30 @@
+# secrets
+src/secrets.toml
+.secrets.toml
+secrets.toml
+
+src/.streamlit/secrets.toml
+.streamlit/secrets.toml
+
+# notebook checkpoints
+.ipynb_checkpoints/
+
+# python
+__pycache__/
+*.pyc
+
+# environments
+.venv/
+venv/
+env/
+
+# logs
+*.log
+
+# local app data
+src/data_store/
+src/data_store/app.db
+src/data_store/visits.csv
+
+# macOS
+.DS_Store
