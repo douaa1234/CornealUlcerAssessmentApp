@@ -1,5 +1,5 @@
 streamlit==1.28.0
-streamlit-drawable-canvas==0.9.3
+git+https://github.com/andfanilo/streamlit-drawable-canvas.git
 numpy>=1.24.0
 opencv-python-headless>=4.8.0
 Pillow>=10.0.0

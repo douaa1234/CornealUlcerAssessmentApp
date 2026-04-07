@@ -15,6 +15,10 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 
+# Compatibility shim: st.rerun() was added in Streamlit 1.27; older builds use experimental_rerun
+if not hasattr(st, "rerun"):
+    st.rerun = st.experimental_rerun  # type: ignore[attr-defined]
+
 from analysis import analyse_arrays
 from ulcer_unet_infer import load_ulcer_unet,predict_mask_from_path
 from llm_report import generate_report_with_llm
@@ -46,7 +50,45 @@ except Exception as e1:
         KERAS_OK = False
         KERAS_ERROR = f"tf.keras: {e1} | keras: {e2}"
 
-#Brush editor 
+#Brush editor
+# streamlit-drawable-canvas calls streamlit.elements.image.image_to_url which was
+# removed in Streamlit 1.26+. Patch it back before importing the canvas library.
+# We re-implement it using Streamlit's media file manager (same as the original),
+# so the image is served over HTTP — data: URLs break when crossOrigin:'anonymous'
+# is set by fabric.js in the canvas frontend.
+import streamlit.elements.image as _st_image_mod
+if not hasattr(_st_image_mod, "image_to_url"):
+    import base64 as _b64
+    from io import BytesIO as _BytesIO
+
+    def _compat_image_to_url(image, width=-1, clamp=False, channels="RGB",
+                             output_format="auto", image_id="", allow_emoji=False):
+        if image is None:
+            return ""
+        fmt = "PNG" if (not output_format or output_format.lower() == "auto") else output_format.upper()
+        buf = _BytesIO()
+        if hasattr(image, "save"):
+            image.save(buf, format=fmt)
+        else:
+            return ""
+        image_bytes = buf.getvalue()
+        mimetype = f"image/{fmt.lower()}"
+
+        # Primary: serve via Streamlit's media file manager (returns a proper /media/… URL)
+        try:
+            from streamlit.runtime import get_instance as _get_runtime
+            _runtime = _get_runtime()
+            if _runtime is not None:
+                url = _runtime.media_file_mgr.add(image_bytes, mimetype, image_id)
+                return url
+        except Exception:
+            pass
+
+        # Fallback: base64 data URL (works locally, may fail on cloud due to CORS)
+        return f"data:{mimetype};base64,{_b64.b64encode(image_bytes).decode()}"
+
+    _st_image_mod.image_to_url = _compat_image_to_url
+
 try:
     from streamlit_drawable_canvas import st_canvas
     CANVAS_OK = True
@@ -462,6 +504,7 @@ def reset_editor_for_new_image(ns:str,fp:str):
             mask_key(ns),
             canvas_nonce_key(ns),
             f"{ns}_mask_confirmed",
+            f"{ns}_canvas_clear",
             f"{ns}_mm_per_px",
             f"{ns}_ref_roi_xywh",
             f"{ns}_ref_rect_canvas",
@@ -546,10 +589,18 @@ def ReviewEdit(ns:str, rgb_display:np.ndarray, pred_mask01_display:np.ndarray) -
         st.info("Install streamlit-drawable-canvas to enable brush editing.")
         return edited_mask
 
-    bg= make_editor_background(rgb_display, edited_mask, alpha=alpha)
+    # Convert to RGBA — required for the background to render correctly on
+    # Streamlit Cloud (plain RGB images can appear blank in the component).
+    bg = make_editor_background(rgb_display, edited_mask, alpha=alpha).convert("RGBA")
     stroke_color = "#00E676" if mode == "Add" else "#FF4DFF"
 
-    canvas_result= st_canvas(
+    # Use a STABLE key so the component never re-initialises mid-session
+    # (re-initialisation is what caused the blank background on Streamlit Cloud).
+    # Strokes are cleared via initial_drawing instead of a key change.
+    clear_flag_key = f"{ns}_canvas_clear"
+    initial_drawing = {"version": "4.4.0", "objects": []} if st.session_state.pop(clear_flag_key, False) else None
+
+    canvas_kwargs = dict(
         fill_color="rgba(255,255,255,0.0)",
         stroke_width=int(brush),
         stroke_color=stroke_color,
@@ -558,22 +609,25 @@ def ReviewEdit(ns:str, rgb_display:np.ndarray, pred_mask01_display:np.ndarray) -
         height=DISPLAY_SIZE,
         width=DISPLAY_SIZE,
         drawing_mode="freedraw",
-        key=canvas_key(ns),
+        key=f"{ns}_mask_editor",   # stable key — never changes
     )
+    if initial_drawing is not None:
+        canvas_kwargs["initial_drawing"] = initial_drawing
 
-    cA,cB = st.columns(2)
+    canvas_result = st_canvas(**canvas_kwargs)
+
+    cA, cB = st.columns(2)
     with cA:
-        if st.button("Apply changes", key=f"{ns}apply_strokes"):
+        if st.button("Apply changes", key=f"{ns}_apply_strokes"):
             if canvas_result.image_data is not None:
                 new_mask = apply_strokes(canvas_result.image_data, edited_mask, mode=mode)
                 st.session_state[mask_key(ns)] = new_mask
-                reset_canvas(ns)  # critical: clear strokes so next apply only uses new drawing
+                st.session_state[clear_flag_key] = True   # clear strokes on next render
                 st.rerun()
-
     with cB:
         if st.button("Reset to prediction", key=f"{ns}_reset_mask"):
             st.session_state[mask_key(ns)] = pred_mask01_display.copy()
-            reset_canvas(ns)
+            st.session_state[clear_flag_key] = True
             st.rerun()
 
     return st.session_state[mask_key(ns)]
@@ -603,9 +657,9 @@ If you mark a neutral grey patch, the app can normalise brightness so the **opac
     if not CANVAS_OK:
         st.warning("Install streamlit-drawable-canvas to select the grey patch.")
         return True, roi, float(target_grey)
-    
+
     st.caption("Draw a rectangle around the grey patch.")
-    bg = Image.fromarray(rgb_display)
+    bg = Image.fromarray(rgb_display).convert("RGBA")
     canvas = st_canvas(
         fill_color="rgba(255,255,255,0.0)",
         stroke_width=2,
@@ -620,14 +674,14 @@ If you mark a neutral grey patch, the app can normalise brightness so the **opac
 
     if canvas.json_data and "objects" in canvas.json_data and len(canvas.json_data["objects"]) > 0:
         obj = canvas.json_data["objects"][-1]
-        if obj.get("type")=="rect":
-            x= int(obj.get("left", 0))
-            y= int(obj.get("top", 0))
-            w= int(obj.get("width", 0) * obj.get("scaleX", 1))
-            h= int(obj.get("height", 0) * obj.get("scaleY", 1))
-            if w>0 and h > 0:
-                roi= (x, y, w, h)
-                st.session_state[f"{ns}_ref_roi_xywh"]= roi
+        if obj.get("type") == "rect":
+            x = int(obj.get("left", 0))
+            y = int(obj.get("top", 0))
+            w = int(obj.get("width", 0) * obj.get("scaleX", 1))
+            h = int(obj.get("height", 0) * obj.get("scaleY", 1))
+            if w > 0 and h > 0:
+                roi = (x, y, w, h)
+                st.session_state[f"{ns}_ref_roi_xywh"] = roi
 
     if roi is not None:
         st.caption(f"Grey patch ROI: x={roi[0]}, y={roi[1]}, w={roi[2]}, h={roi[3]}")
@@ -649,7 +703,7 @@ def calibration(ns:str, rgb_display:np.ndarray, mask01_display:np.ndarray):
     if method == "Line":
         st.caption("Draw a line across a known distance (eg: a ruler/marker in the image).")
         if not CANVAS_OK:
-            st.image(base, **img_kw())  # fallback only
+            st.image(base, **img_kw())
             st.error("Install streamlit-drawable-canvas to use line calibration.")
             return
 
@@ -660,8 +714,7 @@ def calibration(ns:str, rgb_display:np.ndarray, mask01_display:np.ndarray):
             step=0.1,
             key=f"{ns}_known_mm",
         )
-        bg = Image.fromarray(draw_grid(base, 25, thickness=1, opacity=0.16))
-#display the image
+        bg = Image.fromarray(draw_grid(base, 25, thickness=1, opacity=0.16)).convert("RGBA")
         line_canvas = st_canvas(
             fill_color="rgba(255,255,255,0.0)",
             stroke_width=3,
@@ -674,9 +727,9 @@ def calibration(ns:str, rgb_display:np.ndarray, mask01_display:np.ndarray):
             key=f"{ns}_linecanvas",
         )
 
-        if line_canvas.json_data and "objects" in line_canvas.json_data and len(line_canvas.json_data["objects"])> 0:
-            obj= line_canvas.json_data["objects"][-1]
-            if obj.get("type")== "line":
+        if line_canvas.json_data and "objects" in line_canvas.json_data and len(line_canvas.json_data["objects"]) > 0:
+            obj = line_canvas.json_data["objects"][-1]
+            if obj.get("type") == "line":
                 x1, y1, x2, y2 = obj["x1"], obj["y1"], obj["x2"], obj["y2"]
                 px_dist = float(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5)
                 if px_dist > 0:
