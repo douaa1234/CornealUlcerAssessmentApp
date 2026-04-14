@@ -6,7 +6,37 @@ import json
 import traceback
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
-import streamlit as st
+
+try:
+    import streamlit as st
+except Exception:
+    class _Secrets(dict):
+        def get(self, key, default=None):
+            return super().get(key, default)
+
+    class _StreamlitShim:
+        secrets = _Secrets()
+
+        def error(self, *args, **kwargs):
+            return None
+
+        def code(self, *args, **kwargs):
+            return None
+
+        def write(self, *args, **kwargs):
+            return None
+
+        class _NoopExpander:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def expander(self, *args, **kwargs):
+            return self._NoopExpander()
+
+    st = _StreamlitShim()
 
 try:
     from openai import OpenAI

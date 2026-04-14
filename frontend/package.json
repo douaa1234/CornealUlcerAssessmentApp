@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5174 --strictPort --force",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "fabric": "^6.6.7",
+    "vite": "^6.0.11",
+    "typescript": "^5.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {}
+}
