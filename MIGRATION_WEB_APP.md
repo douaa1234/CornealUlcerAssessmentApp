@@ -85,6 +85,14 @@ export WHITE_CKPT_PATH=/persistent/models/best.pt
 
 For SQLite fallback, mount a persistent disk and point `DATA_DIR` at it. The app stores `app.db`, SQLite WAL files, audit logs and server-side session rows there.
 
+If you use Postgres and do not want a paid persistent disk, set `DATABASE_URL` and use an ephemeral `DATA_DIR` such as:
+
+```bash
+export DATA_DIR=/tmp/corneal-ulcer-data
+```
+
+With Postgres enabled, visits and server-side sessions are stored in Postgres. The ephemeral `DATA_DIR` is then only for audit logs/fallback files.
+
 Example backend start command:
 
 ```bash
